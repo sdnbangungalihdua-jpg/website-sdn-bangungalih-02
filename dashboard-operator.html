@@ -1,0 +1,163 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Operator - SDN Bangungalih 02</title>
+<style>
+body{font-family:Arial,sans-serif;background:#f1f5f2;margin:0;color:#26352b}
+header{background:#176b3a;color:white;padding:20px}
+main{max-width:950px;margin:25px auto;padding:15px}
+.card{background:white;padding:18px;margin:15px 0;border-radius:10px;box-shadow:0 2px 8px #0001}
+button{border:0;padding:9px 13px;border-radius:6px;cursor:pointer;margin:4px}
+.publish{background:#168344;color:white}
+.reject{background:#e7a52b;color:#222}
+.delete{background:#c93636;color:white}
+.logout{background:white;color:#176b3a}
+small{color:#657268}
+#pesan{margin:15px 0}
+</style>
+</head>
+<body>
+<header>
+  <h2>Dashboard Operator</h2>
+  <p>SDN Bangungalih 02</p>
+  <button class="logout" id="logout">Keluar</button>
+</header>
+
+<main>
+  <h2>Kelola Berita dan Pengumuman</h2>
+  <p id="pesan">Memeriksa akun...</p>
+  <div id="daftar"></div>
+</main>
+
+<script type="module">
+import { createClient } from
+'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+const SUPABASE_URL = 'https://qcoxdmssqmvpxyjrlvjw.supabase.co';
+const SUPABASE_KEY = 'TEMPEL_PUBLISHABLE_KEY_DI_SINI';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const pesan = document.getElementById('pesan');
+const daftar = document.getElementById('daftar');
+
+async function mulai() {
+  const { data: { user }, error } = await supabase.auth.getUser();
+
+  if (error || !user) {
+    location.href = 'login.html';
+    return;
+  }
+
+  const { data: profil } = await supabase
+    .from('profiles')
+    .select('nama, role')
+    .eq('id', user.id)
+    .single();
+
+  if (!profil || profil.role !== 'operator') {
+    pesan.textContent = 'Akses hanya untuk operator.';
+    await supabase.auth.signOut();
+    return;
+  }
+
+  pesan.textContent = 'Selamat datang, ' + profil.nama;
+  tampilkanBerita();
+}
+
+async function tampilkanBerita() {
+  daftar.replaceChildren();
+
+  const { data, error } = await supabase
+    .from('posts')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    pesan.textContent = 'Gagal mengambil berita: ' + error.message;
+    return;
+  }
+
+  if (!data || data.length === 0) {
+    daftar.textContent = 'Belum ada berita atau pengumuman.';
+    return;
+  }
+
+  data.forEach(post => {
+    const kartu = document.createElement('section');
+    kartu.className = 'card';
+
+    const judul = document.createElement('h3');
+    judul.textContent = post.judul || '(Tanpa judul)';
+
+    const info = document.createElement('small');
+    info.textContent =
+      (post.kategori || '') + ' | Status: ' + (post.status || '');
+
+    const isi = document.createElement('p');
+    isi.textContent = post.isi || '';
+
+    const tombolTerbit = document.createElement('button');
+    tombolTerbit.className = 'publish';
+    tombolTerbit.textContent = 'Terbitkan';
+    tombolTerbit.onclick = () => ubahStatus(post.id, 'terbit');
+
+    const tombolTolak = document.createElement('button');
+    tombolTolak.className = 'reject';
+    tombolTolak.textContent = 'Tolak';
+    tombolTolak.onclick = () => ubahStatus(post.id, 'ditolak');
+
+    const tombolHapus = document.createElement('button');
+    tombolHapus.className = 'delete';
+    tombolHapus.textContent = 'Hapus';
+    tombolHapus.onclick = () => hapusBerita(post.id);
+
+    kartu.append(judul, info, isi, tombolTerbit, tombolTolak, tombolHapus);
+    daftar.append(kartu);
+  });
+}
+
+async function ubahStatus(id, status) {
+  const { error } = await supabase
+    .from('posts')
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq('id', id);
+
+  if (error) {
+    alert('Gagal mengubah status: ' + error.message);
+    return;
+  }
+
+  alert('Status berhasil diubah.');
+  tampilkanBerita();
+}
+
+async function hapusBerita(id) {
+  if (!confirm('Yakin ingin menghapus berita ini?')) return;
+
+  const { error } = await supabase
+    .from('posts')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    alert('Gagal menghapus: ' + error.message);
+    return;
+  }
+
+  alert('Berita berhasil dihapus.');
+  tampilkanBerita();
+}
+
+document.getElementById('logout').onclick = async () => {
+  await supabase.auth.signOut();
+  location.href = 'login.html';
+};
+
+mulai();
+</script>
+</body>
+</html>
