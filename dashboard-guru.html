@@ -1,0 +1,164 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard Guru - SDN Bangungalih 02</title>
+<style>
+body{font-family:Arial,sans-serif;background:#f1f5f2;margin:0;color:#26352b}
+header{background:#176b3a;color:white;padding:20px}
+main{max-width:850px;margin:25px auto;padding:15px}
+.card{background:white;padding:20px;border-radius:10px;margin:15px 0;box-shadow:0 2px 8px #0001}
+input,select,textarea{box-sizing:border-box;width:100%;padding:12px;margin:8px 0 15px;border:1px solid #bbb;border-radius:6px;font:inherit}
+textarea{min-height:130px}
+button{background:#176b3a;color:white;border:0;padding:11px 18px;border-radius:6px;cursor:pointer}
+.logout{background:white;color:#176b3a}
+small{color:#657268}
+</style>
+</head>
+<body>
+<header>
+<h2>Dashboard Guru</h2>
+<p>SDN Bangungalih 02</p>
+<button class="logout" id="logout">Keluar</button>
+</header>
+
+<main>
+<h2 id="salam">Memeriksa akun...</h2>
+
+<section class="card">
+<h3>Kirim Berita / Pengumuman</h3>
+<form id="formBerita">
+<label>Judul</label>
+<input id="judul" required maxlength="200" placeholder="Masukkan judul">
+
+<label>Kategori</label>
+<select id="kategori">
+<option value="berita">Berita</option>
+<option value="pengumuman">Pengumuman</option>
+</select>
+
+<label>Isi berita atau pengumuman</label>
+<textarea id="isi" required placeholder="Tuliskan isi berita..."></textarea>
+
+<button type="submit">Kirim untuk diperiksa operator</button>
+</form>
+<p id="pesan"></p>
+</section>
+
+<section class="card">
+<h3>Kiriman Saya</h3>
+<div id="daftar">Memuat kiriman...</div>
+</section>
+</main>
+
+<script type="module">
+import { createClient } from
+'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+const SUPABASE_URL = 'https://qcoxdmssqmvpxyjrlvjw.supabase.co';
+const SUPABASE_KEY = 'TEMPEL_PUBLISHABLE_KEY_DI_SINI';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let pengguna = null;
+const pesan = document.getElementById('pesan');
+const daftar = document.getElementById('daftar');
+
+async function mulai() {
+  const { data: { user }, error } = await supabase.auth.getUser();
+
+  if (error || !user) {
+    location.href = 'login.html';
+    return;
+  }
+
+  const { data: profil } = await supabase
+    .from('profiles')
+    .select('nama, role')
+    .eq('id', user.id)
+    .single();
+
+  if (!profil || profil.role !== 'guru') {
+    document.getElementById('salam').textContent =
+      'Halaman ini khusus untuk akun guru.';
+    document.getElementById('formBerita').style.display = 'none';
+    return;
+  }
+
+  pengguna = user;
+  document.getElementById('salam').textContent =
+    'Selamat datang, ' + profil.nama;
+
+  tampilkanKiriman();
+}
+
+document.getElementById('formBerita').addEventListener('submit',
+async function(e) {
+  e.preventDefault();
+  if (!pengguna) return;
+
+  const judul = document.getElementById('judul').value.trim();
+  const kategori = document.getElementById('kategori').value;
+  const isi = document.getElementById('isi').value.trim();
+
+  if (!judul || !isi) {
+    pesan.textContent = 'Judul dan isi harus diisi.';
+    return;
+  }
+
+  const { error } = await supabase.from('posts').insert({
+    judul: judul,
+    kategori: kategori,
+    isi: isi,
+    author_id: pengguna.id,
+    status: 'menunggu'
+  });
+
+  if (error) {
+    pesan.textContent = 'Gagal mengirim: ' + error.message;
+    return;
+  }
+
+  pesan.textContent = 'Berhasil dikirim. Menunggu persetujuan operator.';
+  this.reset();
+  tampilkanKiriman();
+});
+
+async function tampilkanKiriman() {
+  const { data, error } = await supabase
+    .from('posts')
+    .select('judul, kategori, status, created_at')
+    .eq('author_id', pengguna.id)
+    .order('created_at', { ascending: false });
+
+  daftar.replaceChildren();
+
+  if (error) {
+    daftar.textContent = 'Gagal memuat: ' + error.message;
+    return;
+  }
+
+  if (!data || data.length === 0) {
+    daftar.textContent = 'Belum ada kiriman.';
+    return;
+  }
+
+  data.forEach(post => {
+    const item = document.createElement('p');
+    item.textContent =
+      post.judul + ' — ' + post.kategori + ' — Status: ' + post.status;
+    daftar.append(item);
+  });
+}
+
+document.getElementById('logout').onclick = async () => {
+  await supabase.auth.signOut();
+  location.href = 'login.html';
+};
+
+mulai();
+</script>
+</body>
+</html>
