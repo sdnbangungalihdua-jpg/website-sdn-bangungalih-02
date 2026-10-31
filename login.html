@@ -1,0 +1,121 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - SDN Bangungalih 02</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #eef5ee;
+    }
+    .login-box {
+      width: 100%;
+      max-width: 390px;
+      padding: 30px;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 5px 25px #0001;
+    }
+    h2 { text-align: center; color: #176b39; }
+    p { text-align: center; color: #666; }
+    input, button {
+      width: 100%;
+      padding: 13px;
+      margin-top: 14px;
+      border-radius: 8px;
+      font-size: 15px;
+    }
+    input { border: 1px solid #ccc; }
+    button {
+      border: 0;
+      background: #176b39;
+      color: white;
+      cursor: pointer;
+    }
+    button:disabled { opacity: .6; }
+    #pesan { font-size: 14px; color: #b42318; }
+    a { color: #176b39; }
+  </style>
+</head>
+<body>
+  <div class="login-box">
+    <h2>SDN Bangungalih 02</h2>
+    <p>Login Operator dan Guru</p>
+
+    <form id="formLogin">
+      <input id="email" type="email" placeholder="Email" required>
+      <input id="password" type="password" placeholder="Password" required>
+      <button id="tombol" type="submit">Masuk</button>
+    </form>
+
+    <p id="pesan"></p>
+    <p><a href="index.html">Kembali ke halaman utama</a></p>
+  </div>
+
+  <script type="module">
+    import { createClient } from
+      'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+    const SUPABASE_URL =
+      'https://qcoxdmssqmvpxyjrlvjw.supabase.co';
+
+    const SUPABASE_KEY = 'TEMPEL_PUBLISHABLE_KEY_DI_SINI';
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const form = document.getElementById('formLogin');
+    const pesan = document.getElementById('pesan');
+    const tombol = document.getElementById('tombol');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      pesan.textContent = '';
+      tombol.disabled = true;
+      tombol.textContent = 'Memeriksa...';
+
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: document.getElementById('email').value.trim(),
+          password: document.getElementById('password').value
+        });
+
+        if (error) throw error;
+
+        const { data: profil, error: profilError } = await supabase
+          .from('profiles')
+          .select('nama, role')
+          .eq('id', data.user.id)
+          .single();
+
+        if (profilError || !profil) {
+          await supabase.auth.signOut();
+          throw new Error('Profil pengguna belum terdaftar.');
+        }
+
+        if (profil.role === 'operator') {
+          window.location.href = 'dashboard-operator.html';
+        } else if (profil.role === 'guru') {
+          window.location.href = 'dashboard-guru.html';
+        } else {
+          await supabase.auth.signOut();
+          throw new Error('Peran pengguna tidak dikenali.');
+        }
+
+      } catch (error) {
+        pesan.textContent = error.message;
+      } finally {
+        tombol.disabled = false;
+        tombol.textContent = 'Masuk';
+      }
+    });
+  </script>
+</body>
+</html>
